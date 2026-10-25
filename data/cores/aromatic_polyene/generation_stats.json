@@ -1,0 +1,121 @@
+{
+  "modular_class": "aromatic_polyene",
+  "family": "aromatic_polyene",
+  "biosynthetic_class": "type_i_pks",
+  "is_core_policy": "type_i_te_release",
+  "core_source": "generate",
+  "phase": "assembly",
+  "description": "Aromatic cis-AT PKS precursors with unsaturation-biased extension modules and a required conjugated polyene segment.",
+  "profile": {
+    "release_modes": [
+      "thiolysis",
+      "cyclization"
+    ],
+    "min_ext": 3,
+    "max_ext": 12,
+    "starter_codes": null,
+    "extender_codes": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal",
+      "allylmal"
+    ],
+    "prefer_non_aromatic": false,
+    "require_aromatic": true,
+    "min_aromatic_atoms": 1,
+    "min_conjugated_alkene_run": 3,
+    "min_cyclization_ring_size": 12
+  },
+  "n_cores": 200,
+  "stats": {
+    "attempts": 4069,
+    "bound_fail": 507,
+    "release_fail": 197,
+    "canonicalization_fail": 0,
+    "filter_aromatic": 0,
+    "filter_missing_required_aromaticity": 2332,
+    "filter_missing_required_polyene": 403,
+    "filter_cyclization_ring_size": 430,
+    "accepted_aromatic_atom_counts": {
+      "6": 148,
+      "5": 52
+    },
+    "accepted_conjugated_alkene_runs": {
+      "3": 150,
+      "4": 38,
+      "5": 10,
+      "6": 2
+    },
+    "filter_polyether_topology": 0,
+    "duplicate": 0,
+    "accepted": 200,
+    "by_release": {
+      "thiolysis": 107,
+      "cyclization": 93
+    },
+    "by_n_ext": {
+      "12": 51,
+      "6": 13,
+      "11": 28,
+      "9": 20,
+      "8": 35,
+      "10": 31,
+      "3": 3,
+      "7": 18,
+      "4": 1
+    },
+    "polyether_rejection_reasons": {},
+    "polyether_max_cascade_steps": {},
+    "module_pools": {
+      "olefinic": 5,
+      "hydroxy": 20,
+      "saturated": 8,
+      "keto_or_other": 4
+    },
+    "n_unique": 200,
+    "target": 200,
+    "hit_target": true,
+    "acceptance_rate": 0.049152125829442124,
+    "selected_starters": [
+      "Methylmalonyl-CoA",
+      "Malonyl-CoA",
+      "Hydroxymalonyl-CoA",
+      "Allylmalonyl-CoA",
+      "butmal",
+      "mxmal",
+      "cemal",
+      "Acetyl-CoA",
+      "prop",
+      "isobut",
+      "2metbut",
+      "CHC-CoA",
+      "trans-1,2-CPDA",
+      "cyclopentene",
+      "pyr",
+      "cin",
+      "AHBA",
+      "isoval",
+      "PABA",
+      "DCP",
+      "guan",
+      "mthz",
+      "DHCH",
+      "DHCHene",
+      "plac",
+      "benz",
+      "PNBA",
+      "ema",
+      "3measp"
+    ],
+    "selected_extenders": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal",
+      "allylmal"
+    ]
+  },
+  "outputs": {
+    "smiles": "/Users/lukecarlate/PolyketideClassifier/data/cores/aromatic_polyene/cores_SMILES.txt",
+    "metadata": "/Users/lukecarlate/PolyketideClassifier/data/cores/aromatic_polyene/cores_metadata.jsonl"
+  }
+}

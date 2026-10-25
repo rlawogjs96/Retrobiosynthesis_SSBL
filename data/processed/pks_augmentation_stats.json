@@ -1,0 +1,32 @@
+{
+  "num_input_cores": 1600,
+  "num_trajectories": 3416,
+  "total_trajectory_states": 16639,
+  "num_rules_in_bank": 33,
+  "step_distribution": {
+    "1": 3416,
+    "2": 3416,
+    "3": 3416,
+    "4": 3414,
+    "0": 1600,
+    "-1": 1377
+  },
+  "phase_distribution": {
+    "Phase_1": 2753,
+    "Phase_2": 3399,
+    "Phase_3": 715,
+    "Phase_4": 6795
+  },
+  "enzyme_family_distribution": {
+    "Glycosyltransferase": 4627,
+    "Acyltransferase": 2767,
+    "P450": 2198,
+    "Pericyclase": 1944,
+    "Prenyltransferase": 1002,
+    "Methyltransferase": 397,
+    "Halogenase": 290,
+    "Oxidoreductase": 180,
+    "BVMO": 158,
+    "Hydrolase": 99
+  }
+}

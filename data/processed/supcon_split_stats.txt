@@ -1,0 +1,8 @@
+=== Reverse-Peeling Trajectory Split Statistics ===
+
+Total unique trajectory states: 15,075
+Total connected components:     1,503
+Train states:                   11,969
+Val states:                     1,547
+Test states:                    1,559
+No SMILES leakage detected:     Yes

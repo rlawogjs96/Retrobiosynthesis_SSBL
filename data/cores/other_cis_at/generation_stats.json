@@ -1,0 +1,120 @@
+{
+  "modular_class": "other_cis_at",
+  "family": "other_cis_at",
+  "biosynthetic_class": "type_i_pks",
+  "is_core_policy": "type_i_te_release",
+  "core_source": "generate",
+  "phase": "assembly",
+  "description": "Other canonical cis-AT modular polyketides generated from mixed reduction-state modules, including linear polyols, macrolactones, macrolactams, and related reduced products.",
+  "profile": {
+    "release_modes": [
+      "thiolysis",
+      "cyclization"
+    ],
+    "min_cyclization_ring_size": 12,
+    "min_ext": 4,
+    "max_ext": 10,
+    "starter_codes": null,
+    "extender_codes": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal",
+      "mxmal",
+      "hmal",
+      "allylmal"
+    ],
+    "prefer_non_aromatic": true
+  },
+  "n_cores": 200,
+  "stats": {
+    "attempts": 333,
+    "bound_fail": 7,
+    "release_fail": 0,
+    "canonicalization_fail": 0,
+    "filter_aromatic": 91,
+    "filter_missing_required_aromaticity": 0,
+    "filter_missing_required_polyene": 0,
+    "filter_cyclization_ring_size": 35,
+    "accepted_aromatic_atom_counts": {
+      "0": 200
+    },
+    "accepted_conjugated_alkene_runs": {
+      "1": 162,
+      "0": 23,
+      "4": 2,
+      "2": 12,
+      "3": 1
+    },
+    "filter_polyether_topology": 0,
+    "duplicate": 0,
+    "accepted": 200,
+    "by_release": {
+      "thiolysis": 110,
+      "cyclization": 90
+    },
+    "by_n_ext": {
+      "8": 34,
+      "5": 24,
+      "7": 33,
+      "9": 24,
+      "10": 32,
+      "4": 24,
+      "6": 29
+    },
+    "polyether_rejection_reasons": {},
+    "polyether_max_cascade_steps": {},
+    "module_pools": {
+      "olefinic": 7,
+      "hydroxy": 32,
+      "saturated": 12,
+      "keto_or_other": 6
+    },
+    "n_unique": 200,
+    "target": 200,
+    "hit_target": true,
+    "acceptance_rate": 0.6006006006006006,
+    "selected_starters": [
+      "Methylmalonyl-CoA",
+      "Malonyl-CoA",
+      "Hydroxymalonyl-CoA",
+      "Allylmalonyl-CoA",
+      "butmal",
+      "mxmal",
+      "cemal",
+      "Acetyl-CoA",
+      "prop",
+      "isobut",
+      "2metbut",
+      "CHC-CoA",
+      "trans-1,2-CPDA",
+      "cyclopentene",
+      "pyr",
+      "cin",
+      "AHBA",
+      "isoval",
+      "PABA",
+      "DCP",
+      "guan",
+      "mthz",
+      "DHCH",
+      "DHCHene",
+      "plac",
+      "benz",
+      "PNBA",
+      "ema",
+      "3measp"
+    ],
+    "selected_extenders": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal",
+      "mxmal",
+      "hmal",
+      "allylmal"
+    ]
+  },
+  "outputs": {
+    "smiles": "/Users/lukecarlate/PolyketideClassifier/data/cores/other_cis_at/cores_SMILES.txt",
+    "metadata": "/Users/lukecarlate/PolyketideClassifier/data/cores/other_cis_at/cores_metadata.jsonl"
+  }
+}

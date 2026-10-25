@@ -1,0 +1,104 @@
+{
+  "modular_class": "polyethers",
+  "family": "polyethers",
+  "biosynthetic_class": "type_i_pks",
+  "is_core_policy": "type_i_te_release",
+  "core_source": "generate",
+  "phase": "assembly",
+  "description": "Ionophore-like linear polyene/polyol precursors enriched for topologically feasible sequential 5/6-membered epoxide-opening cascades.",
+  "profile": {
+    "release_modes": [
+      "thiolysis"
+    ],
+    "min_ext": 11,
+    "max_ext": 14,
+    "starter_codes": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA"
+    ],
+    "extender_codes": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal"
+    ],
+    "prefer_non_aromatic": true,
+    "min_alkenes": 3,
+    "min_alcohols": 1,
+    "min_cascade_steps": 2,
+    "allowed_ring_sizes": [
+      5,
+      6
+    ],
+    "max_virtual_cascade_steps": 5
+  },
+  "n_cores": 200,
+  "stats": {
+    "attempts": 231,
+    "bound_fail": 0,
+    "release_fail": 0,
+    "canonicalization_fail": 0,
+    "filter_aromatic": 0,
+    "filter_missing_required_aromaticity": 0,
+    "filter_missing_required_polyene": 0,
+    "filter_cyclization_ring_size": 0,
+    "accepted_aromatic_atom_counts": {
+      "0": 200
+    },
+    "accepted_conjugated_alkene_runs": {
+      "2": 96,
+      "3": 53,
+      "1": 19,
+      "4": 23,
+      "5": 7,
+      "6": 2
+    },
+    "filter_polyether_topology": 31,
+    "duplicate": 0,
+    "accepted": 200,
+    "by_release": {
+      "thiolysis": 200
+    },
+    "by_n_ext": {
+      "11": 42,
+      "12": 52,
+      "14": 41,
+      "13": 65
+    },
+    "polyether_rejection_reasons": {
+      "virtual_cascade_shorter_than_required": 22,
+      "no_5_or_6_membered_initial_closure": 6,
+      "insufficient_aliphatic_alcohols": 3
+    },
+    "polyether_max_cascade_steps": {
+      "4": 36,
+      "5": 43,
+      "1": 22,
+      "3": 65,
+      "2": 56,
+      "0": 9
+    },
+    "module_pools": {
+      "olefinic": 4,
+      "hydroxy": 14,
+      "saturated": 6,
+      "keto_or_other": 3
+    },
+    "n_unique": 200,
+    "target": 200,
+    "hit_target": true,
+    "acceptance_rate": 0.8658008658008658,
+    "selected_starters": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA"
+    ],
+    "selected_extenders": [
+      "Malonyl-CoA",
+      "Methylmalonyl-CoA",
+      "emal"
+    ]
+  },
+  "outputs": {
+    "smiles": "/Users/lukecarlate/PolyketideClassifier/data/cores/polyethers/cores_SMILES.txt",
+    "metadata": "/Users/lukecarlate/PolyketideClassifier/data/cores/polyethers/cores_metadata.jsonl"
+  }
+}
