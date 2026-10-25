@@ -43,7 +43,7 @@ import json
 import os
 import random
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -91,6 +91,8 @@ class EnzymaticTailoringRule:
     balanced_its_rsmi: str  # Cofactor-balanced atom-mapped reaction SMILES for SynKit ITS construction
     is_bridge_forming: bool  # True for Diels-Alder, oxa-Michael, spiroketal, BVMO (edits topology without simple pendant removal)
     caps_parent_oxygen: bool  # True if this step caps a hydroxyl oxygen (O-MT, O-GT, O-Acyl, O-Carbamoyl, Alcohol Ox)
+    can_collide_with_inline_pks_core: bool = False  # True ONLY when the cleaved group (-OH in Rule 3 or -CH3 in Rule 9) is chemically identical to an inline PKS KR beta-OH or AT alpha-methyl
+    extra_reverse_smarts: List[str] = field(default_factory=list)  # Tautomer-aware reverse templates (e.g. enol-tetronate, enol-tetramate, alpha-keto hemiketal)
     candidate_enzymes: str = ""  # Concrete characterized enzymes catalyzing this transformation
     uniprot_ids: str = ""        # Representative UniProt / MITE accessions
     pfam_domains: str = ""       # Pfam / InterPro HMM signatures for BGC gene matching
@@ -879,6 +881,12 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
     ]
 
     # Validate every rule's ITS graph and extract reaction center (RC) size with SynKit
+    extra_rev_by_rule: Dict[int, List[str]] = {
+        3: ["[C:1]([O;H1])([#6:2])-[C:3](=[O:4])-[C:5](=[O:6])O>>[C:1]([O;H1])([#6:2])-[CH2:3]-[C:5](=[O:6])O"],
+        8: ["[#6;!$(C=O):1]-[O;D2:2]-[CH3:3]>>[#6:1]-[O;H1:2]"],
+        16: ["[CH2:2]=[C:3]1-[O:4]-[C:5](=[O:6])-[C:7](=[C:23](-[O;H1:24])-[#6:25])-[C:8]1=[O:9]>>[#6:25]-[C:23](=[O:24])-[CH2:7]-[C:8](=[O:9])O"],
+        22: ["[#6:1]-[C:2](=[O:3])-[C:4]1=[C:5](-[O;H1:6])-[NH1:7]-[C:8]-[C:9]1=[O:10]>>[#6:1]-[C:2](=[O:3])-[CH2:4]-[C:5](=[O:6])-[NH:7]-[C:8]-[C:9](=[O:10])O"],
+    }
     validated_rules: List[EnzymaticTailoringRule] = []
     for r in raw_rules:
         meta = ENZYME_CATALOG_BY_RULE_ID.get(r.rule_id, {})
@@ -886,6 +894,8 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
         r.uniprot_ids = meta.get("uniprot_ids", "")
         r.pfam_domains = meta.get("pfam_domains", "")
         r.cofactors = meta.get("cofactors", "")
+        r.can_collide_with_inline_pks_core = r.rule_id in (3, 9)
+        r.extra_reverse_smarts = extra_rev_by_rule.get(r.rule_id, [])
         try:
             its_graph = rsmi_to_its(r.balanced_its_rsmi, core=True)
             syn_rule = SynRule(its_graph, name=r.name)

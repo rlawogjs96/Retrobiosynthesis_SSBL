@@ -260,11 +260,13 @@ def _match_mxn_nrps_peptide_cleavage(
     rule_id: int,
     p_core_node: np.ndarray,
     p_exposed_node: np.ndarray,
+    syncat_att_map: Optional[np.ndarray] = None,
 ) -> List[Tuple[str, float, List[int], str]]:
     """
     Use `RetroMol/src/retromol/data/mxn.yml` to detect and cleave terminal or macrocycle-bridging
     NRPS amino acid residues (`Rule 20` for alpha/beta/styryl/alaninol amides, `Rule 24` for
-    cyclic proline/pipecolate/piperazate imides), returning `(peeled_smiles, site_score, rc_atoms, aa_name)`.
+    cyclic proline/pipecolate/piperazate imides), returning `(peeled_smiles, site_score, rc_atoms, aa_name)`
+    scored by the exact same neural `0.50 * site_exposed_score + 0.35 * site_decor_score + syncat_boost` formula.
     """
     if rule_id not in (20, 24):
         return []
@@ -333,8 +335,17 @@ def _match_mxn_nrps_peptide_cleavage(
                 a.SetIsotope(0)
                 a.SetAtomMapNum(0)
             pks_smi = Chem.MolToSmiles(pks_frag, isomericSmiles=True)
-            site_exp = float(np.mean([p_exposed_node[i] for i in removed_indices if i < len(p_exposed_node)]))
-            site_score = min(1.0, 0.78 + 0.22 * site_exp)
+
+            site_exposed_score = float(np.mean([p_exposed_node[i] for i in removed_indices if i < len(p_exposed_node)]))
+            site_decor_score = float(np.mean([1.0 - p_core_node[i] for i in removed_indices if i < len(p_core_node)]))
+            syncat_boost = 0.0
+            if syncat_att_map is not None and rule_id < syncat_att_map.shape[0]:
+                rule_att = syncat_att_map[rule_id]
+                uniform_att = 1.0 / max(1, n_atoms)
+                rc_att = float(np.mean([rule_att[i] for i in removed_indices if i < len(rule_att)]))
+                syncat_boost = min(0.25, max(0.0, (rc_att / max(1e-6, uniform_att)) * 0.05))
+
+            site_score = min(1.0, 0.50 * site_exposed_score + 0.35 * site_decor_score + syncat_boost)
             hits.append((pks_smi, site_score, removed_indices, aa_name))
 
     return hits
@@ -403,45 +414,24 @@ def apply_reverse_rule_candidates(
     p_exposed_node: np.ndarray,
     syncat_att_map: Optional[np.ndarray] = None,
     core_protection_threshold: float = 0.88,
-    prev_uncovered_smiles: Optional[str] = None,
 ) -> List[Tuple[str, float, List[int], str]]:
     """
-    Apply `rule` in reverse using stereochemistry-preserving reaction templates + SynKit DPO
-    ITS graph rewrite verification, scoring each candidate precursor by:
-      - Head 2 Exposed-Leaf probability `p_exposed(v)`
-      - Head 1 Core-Shield protection `1 - p_core(v)`
-      - SynCat Rule-to-Node Cross-Attention weight `syncat_att_map[rule_id, v]`
-      - Causal Uncovered-Site Continuity when a step acts on an OH/epoxide/alkene just uncovered
+    Apply `rule` in reverse using stereochemistry-preserving reaction templates from the Rule Bank,
+    scoring each candidate precursor purely by the 3-Head GNN's site predictions:
+      - Head 2 Exposed-Leaf probability `p_exposed(v)` (weight 0.50)
+      - Head 1 Core-Shield protection `1 - p_core(v)` (weight 0.35)
+      - SynCat Rule-to-Node Cross-Attention weight `syncat_att_map[rule_id, v]` (up to 0.25)
     """
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return []
 
-    rxn_smarts_list = [rule.reverse_smarts]
-    if rule.rule_id == 16:
-        # Also support exocyclic enol-tetronate tautomer (e.g. Lobophorin / Kijanimicin / Chlorothricin)
-        rxn_smarts_list.append(
-            "[CH2:2]=[C:3]1-[O:4]-[C:5](=[O:6])-[C:7](=[C:23](-[O;H1:24])-[#6:25])-[C:8]1=[O:9]>>[#6:25]-[C:23](=[O:24])-[CH2:7]-[C:8](=[O:9])O"
-        )
-    elif rule.rule_id == 22:
-        # Also support endocyclic enol-tetramate tautomer: R-C(=O)-C1=C(OH)-NH-CHR'-C1=O
-        rxn_smarts_list.append(
-            "[#6:1]-[C:2](=[O:3])-[C:4]1=[C:5](-[O;H1:6])-[NH1:7]-[C:8]-[C:9]1=[O:10]>>[#6:1]-[C:2](=[O:3])-[CH2:4]-[C:5](=[O:6])-[NH:7]-[C:8]-[C:9](=[O:10])O"
-        )
-    elif rule.rule_id == 8:
-        # Also support O-demethylation on aromatic/2-pyrone enol ethers (e.g. 5,6-dehydrokavain / yangonin)
-        rxn_smarts_list.append(
-            "[#6;!$(C=O):1]-[O;D2:2]-[CH3:3]>>[#6:1]-[O;H1:2]"
-        )
-    elif rule.rule_id == 3:
-        # Also support P450 alpha-keto oxidation reversal on pipecolate-adjacent hemiketal (Meridamycin / Rapamycin / FK520 MerE/RapJ/FkbD):
-        # C(OH)(R)-C(=O)-C(=O)O -> C(OH)(R)-CH2-C(=O)O
-        rxn_smarts_list.append(
-            "[C:1]([O;H1])([#6:2])-[C:3](=[O:4])-[C:5](=[O:6])O>>[C:1]([O;H1])([#6:2])-[CH2:3]-[C:5](=[O:6])O"
-        )
+    rxn_smarts_list = [rule.reverse_smarts] + list(getattr(rule, "extra_reverse_smarts", []))
 
     # Check if `rule` is an NRPS amino acid condensation rule (Rule 20 or Rule 24) and match against all 328 monomers in `mxn.yml`!
-    mxn_aa_hits = _match_mxn_nrps_peptide_cleavage(mol, rule.rule_id, p_core_node, p_exposed_node)
+    mxn_aa_hits = _match_mxn_nrps_peptide_cleavage(
+        mol, rule.rule_id, p_core_node, p_exposed_node, syncat_att_map=syncat_att_map
+    )
 
     raw_prods = []
     any_match = bool(mxn_aa_hits)
@@ -464,8 +454,6 @@ def apply_reverse_rule_candidates(
 
     if not any_match or (not raw_prods and not mxn_aa_hits):
         return []
-
-    dpo_constitutions = _verify_or_discover_synkit_dpo_precursors(smiles, rule, 4)
 
     results: Dict[str, Tuple[float, List[int], str]] = {}
     for pks_smi, sc_aa, rc_aa, aa_name in mxn_aa_hits:
@@ -520,11 +508,10 @@ def apply_reverse_rule_candidates(
 
         if removed_indices:
             mean_removed_core_prob = float(np.mean([p_core_node[i] for i in removed_indices if i < n_atoms]))
-            if (
-                mean_removed_core_prob > core_protection_threshold
-                and not rule.is_bridge_forming
-                and rule.rule_id not in (13, 11, 15, 26, 30, 31, 8, 23, 20, 24)
-            ):
+            # Head 1 Core-Shield veto applies when `rule.can_collide_with_inline_pks_core` is True
+            # (Rule 3 dehydroxylation where -OH can collide with inline KR beta-OH, or
+            #  Rule 9 C-demethylation where -CH3 can collide with inline AT mmal alpha-CH3).
+            if getattr(rule, "can_collide_with_inline_pks_core", False) and mean_removed_core_prob > core_protection_threshold:
                 continue
             site_decor_score = 1.0 - mean_removed_core_prob
         else:
@@ -540,12 +527,6 @@ def apply_reverse_rule_candidates(
             rc_att = float(np.mean([rule_att[i] for i in rc_indices if i < len(rule_att)]))
             syncat_boost = min(0.25, max(0.0, (rc_att / max(1e-6, uniform_att)) * 0.05))
 
-        # Causal Uncovered-Site Continuity bonus: if a previous peeling step uncovered a free -OH / epoxide / alkene,
-        # reward acting on that newly exposed functional group
-        continuity_bonus = 0.0
-        if prev_uncovered_smiles and modified_surviving:
-            continuity_bonus = 0.06
-
         for a in cand.GetAtoms():
             a.SetIsotope(0)
             a.SetAtomMapNum(0)
@@ -553,14 +534,9 @@ def apply_reverse_rule_candidates(
         if cand_smi == smiles:
             continue
 
-        # Bonus if SynKit DPO ITS graph rewrite independently produced the exact same constitution
-        cand_no_stereo = Chem.Mol(cand)
-        Chem.RemoveStereochemistry(cand_no_stereo)
-        dpo_bonus = 0.10 if Chem.MolToSmiles(cand_no_stereo, isomericSmiles=False) in dpo_constitutions else 0.0
-
         site_score = min(
             1.0,
-            0.45 * site_exposed_score + 0.35 * site_decor_score + syncat_boost + dpo_bonus + continuity_bonus,
+            0.50 * site_exposed_score + 0.35 * site_decor_score + syncat_boost,
         )
 
         if cand_smi not in results or site_score > results[cand_smi][0]:
@@ -744,7 +720,6 @@ def run_reverse_peeling_search(
         for node in beam:
             rule_probs = node.gnn_eval["rule_probs"]
             ancestors = {canon_target} | {s.to_smiles for s in node.pathway}
-            prev_from_smi = node.pathway[-1].from_smiles if node.pathway else None
 
             # Pure neural ranking from Head 2 (GAT + SynCat Cross-Attention + PATRO LSTM Highway)
             eff_top_k = len(rule_bank) if len(node.gnn_eval["p_core_node"]) <= 38 else top_k_rules_per_node
@@ -764,7 +739,6 @@ def run_reverse_peeling_search(
                     node.gnn_eval["p_core_node"],
                     node.gnn_eval["p_exposed_node"],
                     syncat_att_map=node.gnn_eval.get("syncat_att_map"),
-                    prev_uncovered_smiles=prev_from_smi,
                 )
 
                 for cand_smi, site_score, rc_atoms, aa_name in precursors:
