@@ -92,6 +92,7 @@ class EnzymaticTailoringRule:
     is_bridge_forming: bool  # True for Diels-Alder, oxa-Michael, spiroketal, BVMO (edits topology without simple pendant removal)
     caps_parent_oxygen: bool  # True if this step caps a hydroxyl oxygen (O-MT, O-GT, O-Acyl, O-Carbamoyl, Alcohol Ox)
     can_collide_with_inline_pks_core: bool = False  # True ONLY when the cleaved group (-OH in Rule 3 or -CH3 in Rule 9) is chemically identical to an inline PKS KR beta-OH or AT alpha-methyl
+    extra_forward_smarts: List[str] = field(default_factory=list)  # Additional forward templates (e.g. linear vs cyclic AHBA cores)
     extra_reverse_smarts: List[str] = field(default_factory=list)  # Tautomer-aware reverse templates (e.g. enol-tetronate, enol-tetramate, alpha-keto hemiketal)
     candidate_enzymes: str = ""  # Concrete characterized enzymes catalyzing this transformation
     uniprot_ids: str = ""        # Representative UniProt / MITE accessions
@@ -469,6 +470,10 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             balanced_its_rsmi="[CH3:2][CH2:1][CH3:3].[O:4]=[O:5].[H:6][H:7]>>[CH3:2][CH:1]([OH:4])[CH3:3].[H:6][O:5][H:7]",
             is_bridge_forming=False,
             caps_parent_oxygen=False,
+            can_collide_with_inline_pks_core=True,
+            extra_reverse_smarts=[
+                "[C:1]([O;H1])([#6:2])-[C:3](=[O:4])-[C:5](=[O:6])O>>[C:1]([O;H1])([#6:2])-[CH2:3]-[C:5](=[O:6])O"
+            ],
         ),
         EnzymaticTailoringRule(
             rule_id=4,
@@ -557,6 +562,7 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             balanced_its_rsmi="[CH3:2][CH2:1][CH3:3].[CH3:4][SH:5]>>[CH3:2][CH:1]([CH3:4])[CH3:3].[SH2:5]",
             is_bridge_forming=False,
             caps_parent_oxygen=False,
+            can_collide_with_inline_pks_core=True,
         ),
         EnzymaticTailoringRule(
             rule_id=10,
@@ -664,6 +670,9 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             balanced_its_rsmi="[CH3:23][C:24](=O)[CH2:7][C:8](=[O:9])[OH:10].[CH2:2]=[C:3]([OH:4])[C:5](=[O:6])[OH:11]>>[CH2:2]=[C:3]1[O:4][C:5](=[O:6])[CH:7]([C:24]([CH3:23])=O)[C:8]1=[O:9].[OH2:10].[OH2:11]",
             is_bridge_forming=True,
             caps_parent_oxygen=True,
+            extra_reverse_smarts=[
+                "[CH2:2]=[C:3]1-[O:4]-[C:5](=[O:6])-[C:7](=[C:23](-[O;H1:24])-[#6:25])-[C:8]1=[O:9]>>[#6:25]-[C:23](=[O:24])-[CH2:7]-[C:8](=[O:9])O"
+            ],
         ),
         EnzymaticTailoringRule(
             rule_id=17,
@@ -744,6 +753,9 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             balanced_its_rsmi="[CH3:1][C:2](=[O:3])[CH2:4][C:5](=[O:6])[NH:7][CH2:8][C:9](=[O:10])[OH:11]>>[CH3:1][C:2]([OH:3])=[C:4]1[C:5](=[O:6])[NH:7][CH2:8][C:9]1=[O:10].[OH2:11]",
             is_bridge_forming=True,
             caps_parent_oxygen=True,
+            extra_reverse_smarts=[
+                "[#6:1]-[C:2](=[O:3])-[C:4]1=[C:5](-[O;H1:6])-[NH1:7]-[C:8]-[C:9]1=[O:10]>>[#6:1]-[C:2](=[O:3])-[CH2:4]-[C:5](=[O:6])-[NH:7]-[C:8]-[C:9](=[O:10])O"
+            ],
         ),
         EnzymaticTailoringRule(
             rule_id=23,
@@ -863,6 +875,9 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             balanced_its_rsmi="[CH3:1][c:2]1[cH:3][c:4]([OH:5])[cH:6][c:7]([NH2:8])[cH:12]1.[CH3:11][C:9](=[O:10])[OH:14].[O:13]=[O:15]>>[CH3:1][C:2]1=[CH:3][C:4](=[O:5])[CH:6]=[C:7]([NH:8][C:9](=[O:10])[CH3:11])[C:12]1=[O:13].[OH2:14].[OH2:15]",
             is_bridge_forming=True,
             caps_parent_oxygen=True,
+            extra_forward_smarts=[
+                "([#6:1]-[c:2]1[cH:3][c:4]([O;H1:5])[cH:6][c:7]([NH2:8])[cH:12]1.[#6:11]-[C;!R:9](=[O:10])-[O;H1:14])>>[#6:1]-[C:2]1=[CH:3]-[C:4](=[O:5])-[CH:6]=[C:7](-[NH:8]-[C:9](=[O:10])-[#6:11])-[C:12]1=O"
+            ],
         ),
         EnzymaticTailoringRule(
             rule_id=32,
@@ -881,12 +896,6 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
     ]
 
     # Validate every rule's ITS graph and extract reaction center (RC) size with SynKit
-    extra_rev_by_rule: Dict[int, List[str]] = {
-        3: ["[C:1]([O;H1])([#6:2])-[C:3](=[O:4])-[C:5](=[O:6])O>>[C:1]([O;H1])([#6:2])-[CH2:3]-[C:5](=[O:6])O"],
-        8: ["[#6;!$(C=O):1]-[O;D2:2]-[CH3:3]>>[#6:1]-[O;H1:2]"],
-        16: ["[CH2:2]=[C:3]1-[O:4]-[C:5](=[O:6])-[C:7](=[C:23](-[O;H1:24])-[#6:25])-[C:8]1=[O:9]>>[#6:25]-[C:23](=[O:24])-[CH2:7]-[C:8](=[O:9])O"],
-        22: ["[#6:1]-[C:2](=[O:3])-[C:4]1=[C:5](-[O;H1:6])-[NH1:7]-[C:8]-[C:9]1=[O:10]>>[#6:1]-[C:2](=[O:3])-[CH2:4]-[C:5](=[O:6])-[NH:7]-[C:8]-[C:9](=[O:10])O"],
-    }
     validated_rules: List[EnzymaticTailoringRule] = []
     for r in raw_rules:
         meta = ENZYME_CATALOG_BY_RULE_ID.get(r.rule_id, {})
@@ -894,8 +903,6 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
         r.uniprot_ids = meta.get("uniprot_ids", "")
         r.pfam_domains = meta.get("pfam_domains", "")
         r.cofactors = meta.get("cofactors", "")
-        r.can_collide_with_inline_pks_core = r.rule_id in (3, 9)
-        r.extra_reverse_smarts = extra_rev_by_rule.get(r.rule_id, [])
         try:
             its_graph = rsmi_to_its(r.balanced_its_rsmi, core=True)
             syn_rule = SynRule(its_graph, name=r.name)
@@ -954,14 +961,7 @@ def apply_forward_rule_tracked(
     reactant to product so we know exactly which atoms are nascent PKS core atoms
     (`1..core_map_max`) vs. newly added tailoring atoms (`>= next_map_base`).
     """
-    rxn_list = [AllChem.ReactionFromSmarts(rule.forward_smarts)]
-    if rule.rule_id == 31:
-        # Also support linear carboxylic-acid AHBA cores (thiolysis release) -> benzoquinone macrolactam!
-        rxn_list.append(
-            AllChem.ReactionFromSmarts(
-                "([#6:1]-[c:2]1[cH:3][c:4]([O;H1:5])[cH:6][c:7]([NH2:8])[cH:12]1.[#6:11]-[C;!R:9](=[O:10])-[O;H1:14])>>[#6:1]-[C:2]1=[CH:3]-[C:4](=[O:5])-[CH:6]=[C:7](-[NH:8]-[C:9](=[O:10])-[#6:11])-[C:12]1=O"
-            )
-        )
+    rxn_list = [AllChem.ReactionFromSmarts(s) for s in ([rule.forward_smarts] + list(rule.extra_forward_smarts))]
     # Copy input molecule and store map numbers in Isotope so RDKit reaction preserves them
     reactant = Chem.Mol(mol_in)
     map_by_idx = {}
@@ -1314,45 +1314,15 @@ def generate_trajectory_for_core(
             rng.shuffle(grp)
 
         if step_idx == 1:
-            # Always try specialized Phase 1 cascades + specialized Phase 2 (AHBA quinone Rule 31 / P450-COOH Rule 30) first
-            spec_p2 = [r for r in phase2_rules if r.rule_id in (31, 30, 4, 3, 5)]
-            other_p2 = [r for r in phase2_rules if r.rule_id not in (31, 30, 4, 3, 5)]
-            if "ahba" in str(core_rec.get("starter_code", "")).lower():
-                candidate_rules = [rule_by_id[31]] + phase1_rules + spec_p2 + other_p2 + phase3_rules
-            else:
-                candidate_rules = phase1_rules + spec_p2 + other_p2 + phase3_rules
+            candidate_rules = phase1_rules + phase2_rules + phase3_rules
         elif step_idx == 2:
-            # Put Phase 4 (glycosylation/carbamoylation/sulfonation) & Phase 2 before generic Phase 3 methylations!
             candidate_rules = (
                 (phase2_rules + phase4_rules + phase3_rules + phase1_rules)
                 if cur_phase == 1
                 else (phase4_rules + phase2_rules + phase3_rules)
             )
         else:
-            # In Steps 3 & 4, prioritize Phase 4 (terminal sugars, carbamates, sulfates, prenyls) first so the GNN
-            # sees hundreds of glycosylated, carbamoylated, and multi-sugar states!
             candidate_rules = phase4_rules + phase3_rules + [r for r in phase2_rules if r.phase >= cur_phase]
-
-        # Prioritize natural biosynthetic cascades when a precursor step just fired:
-        if history:
-            last_rule_id = history[-1].rule_id
-            cascade_next = {
-                16: [17],
-                17: [4],
-                4: [18, 19, 12, 13, 30],
-                12: [28, 13],
-                20: [22, 21, 25, 27, 23],
-                24: [3, 8, 13],
-                30: [13, 4, 2],
-                31: [15, 8],
-                32: [4, 8, 3],
-                13: [13, 15, 11],
-                3: [13, 15, 26, 8, 11, 10],
-            }.get(last_rule_id, [])
-            if cascade_next:
-                priority = [rule_by_id[rid] for rid in cascade_next if rid in rule_by_id]
-                rest = [r for r in candidate_rules if r.rule_id not in cascade_next]
-                candidate_rules = priority + rest
 
         applied = None
         parent_smiles = steps_data[-1]["smiles"]
@@ -1573,9 +1543,7 @@ def main():
             for k, v in core_rec.items()
         }
 
-        is_ahba = "ahba" in str(core_rec_clean.get("starter_code", "")).lower()
-        n_rollouts = max(args.rollouts_per_core, 20 if is_ahba else args.rollouts_per_core)
-        for branch_idx in range(n_rollouts):
+        for branch_idx in range(args.rollouts_per_core):
             traj = generate_trajectory_for_core(
                 core_rec_clean, rule_bank, max_steps=args.max_steps, rng=rng
             )
