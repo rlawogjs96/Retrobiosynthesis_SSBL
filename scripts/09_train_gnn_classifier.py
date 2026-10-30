@@ -164,6 +164,9 @@ def compute_c1_register_encoding(mol: Chem.Mol) -> np.ndarray:
     """
     Compute the C1-Register Positional Encoding specified in `build_guidelines.txt` Section 5.1:
         p_reg(v) = [d_{C1}(v)/20, d_{C1}(v) mod 2, sin(pi*d), cos(pi*d), sin(pi*d/2), cos(pi*d/2), is_c1]
+    Uses carbon-backbone distance for C-C paths (so ether bridges `-C-O-C-` in polyethers or
+    macrolactones do not short-circuit the odd/even alpha/beta C1 register!), falling back to
+    full-graph topological distance for heteroatoms or disconnected components.
     """
     n = mol.GetNumAtoms()
     if n == 0:
@@ -172,10 +175,37 @@ def compute_c1_register_encoding(mol: Chem.Mol) -> np.ndarray:
     c1_idx = find_c1_anchor_idx(mol)
     dist_mat = rdmolops.GetDistanceMatrix(mol)
 
+    # Compute shortest paths on the carbon-only subgraph so cyclic ether bridges (-O-)
+    # cannot shortcut the C1 -> alpha -> beta carbon chain register
+    c_dist = np.full((n,), 999.0, dtype=np.float32)
+    if c1_idx is not None and 0 <= c1_idx < n:
+        c_dist[c1_idx] = 0.0
+        queue = [c1_idx]
+        visited = {c1_idx}
+        while queue:
+            u = queue.pop(0)
+            for nb in mol.GetAtomWithIdx(u).GetNeighbors():
+                v_nb = nb.GetIdx()
+                if v_nb not in visited and nb.GetAtomicNum() == 6:
+                    visited.add(v_nb)
+                    c_dist[v_nb] = c_dist[u] + 1.0
+                    queue.append(v_nb)
+        # For heteroatoms attached to a carbon with known carbon-chain distance,
+        # their C1 register distance is parent_carbon_distance + 1
+        for v in range(n):
+            if c_dist[v] > 500.0:
+                c_nbs = [
+                    c_dist[nb.GetIdx()] + 1.0
+                    for nb in mol.GetAtomWithIdx(v).GetNeighbors()
+                    if c_dist[nb.GetIdx()] <= 500.0
+                ]
+                if c_nbs:
+                    c_dist[v] = min(c_nbs)
+
     reg_pe = np.zeros((n, C1_REG_DIM), dtype=np.float32)
     if c1_idx is not None and 0 <= c1_idx < n:
         for v in range(n):
-            d = float(dist_mat[c1_idx, v])
+            d = float(c_dist[v]) if c_dist[v] <= 500.0 else float(dist_mat[c1_idx, v])
             if d > 100:  # disconnected component fallback
                 d = 20.0
             reg_pe[v, 0] = min(d, 25.0) / 20.0
@@ -477,10 +507,6 @@ class PeelingTrajectoryDataset(Dataset):
         return sample
 
 
-PAD_NODES_MULTIPLE = 256
-PAD_EDGES_MULTIPLE = 1024
-
-
 def collate_peeling_graphs(batch: List[PeelingGraphSample]) -> Dict[str, torch.Tensor]:
     node_feats, edge_indices, edge_attrs, batch_index = [], [], [], []
     is_core_list, role_list, is_exp_list, is_bridge_list = [], [], [], []
@@ -519,33 +545,14 @@ def collate_peeling_graphs(batch: List[PeelingGraphSample]) -> Dict[str, torch.T
     cat_exp = torch.cat(is_exp_list, dim=0)
     cat_bridge = torch.cat(is_bridge_list, dim=0)
 
-    # Pad total nodes and edges to fixed bucket multiples so Apple Metal (MPS)
-    # reuses pre-compiled shader graphs instead of recompiling for every batch shape!
-    num_real_graphs = len(batch)
-    dummy_graph_idx = num_real_graphs  # Extra bucket graph index ignored by loss/outputs
-    real_n = cat_nf.size(0)
-    pad_n = ((real_n + PAD_NODES_MULTIPLE - 1) // PAD_NODES_MULTIPLE) * PAD_NODES_MULTIPLE - real_n
-    if pad_n == 0:
-        pad_n = 1  # Always have at least 1 dummy node for dummy edges
-
-    cat_nf = F.pad(cat_nf, (0, 0, 0, pad_n))
-    cat_batch = torch.cat([cat_batch, torch.full((pad_n,), dummy_graph_idx, dtype=torch.long)], dim=0)
-
-    real_e = cat_ei.size(1)
-    pad_e = ((real_e + PAD_EDGES_MULTIPLE - 1) // PAD_EDGES_MULTIPLE) * PAD_EDGES_MULTIPLE - real_e
-    if pad_e > 0:
-        dummy_ei = torch.full((2, pad_e), real_n, dtype=torch.long)
-        cat_ei = torch.cat([cat_ei, dummy_ei], dim=1)
-        cat_ea = F.pad(cat_ea, (0, 0, 0, pad_e))
-
     return {
         "node_feat": cat_nf,
         "edge_index": cat_ei,
         "edge_attr": cat_ea,
         "batch": cat_batch,
-        "real_num_nodes": real_n,
-        "real_num_edges": real_e,
-        "real_num_graphs": num_real_graphs,
+        "real_num_nodes": cat_nf.size(0),
+        "real_num_edges": cat_ei.size(1),
+        "real_num_graphs": len(batch),
         "is_core_atom": cat_core,
         "register_role_idx": cat_role,
         "is_exposed_atom": cat_exp,
@@ -689,7 +696,7 @@ class PATROPathwayEncoder(nn.Module):
 # =============================================================================
 
 def edge_softmax(dst: torch.Tensor, scores: torch.Tensor, num_nodes: int) -> torch.Tensor:
-    # Vectorized across all attention heads simultaneously using scatter_add_ (no scatter_reduce_ amax stall on MPS)
+    # Vectorized across all attention heads simultaneously using scatter_add_
     heads = scores.size(1)
     s_clamped = (scores - scores.detach().mean(dim=0, keepdim=True)).clamp(min=-15.0, max=15.0)
     exp_s = torch.exp(s_clamped)                                      # [E, H]
@@ -1225,9 +1232,9 @@ def eval_epoch(
 
 def get_compute_device() -> torch.device:
     if torch.cuda.is_available():
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
         return torch.device("cuda")
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
     return torch.device("cpu")
 
 
@@ -1244,21 +1251,28 @@ def main():
     train_path = data_dir / "train" / "supcon_train.parquet"
     val_path = data_dir / "val" / "supcon_val.parquet"
 
+    gpu_info = (
+        f"{torch.cuda.device_count()}x {torch.cuda.get_device_name(0)}"
+        if device.type == "cuda"
+        else str(device)
+    )
     print("=" * 88)
     print("TRAINING 3-HEAD REVERSE-PEELING GNN (C1-Register PE + SynCat Cross-Attn + PATRO Highway)")
     print("=" * 88)
-    print(f"Device: {device} | Node Feat Dim: {NODE_FEAT_DIM} (C1-Reg={C1_REG_DIM}, RWSE={RWSE_STEPS}, LapPE={LAP_PE_DIM}) | Edge Feat Dim: {EDGE_FEAT_DIM}")
+    print(f"Device: {device} ({gpu_info}) | Node Feat Dim: {NODE_FEAT_DIM} (C1-Reg={C1_REG_DIM}, RWSE={RWSE_STEPS}, LapPE={LAP_PE_DIM}) | Edge Feat Dim: {EDGE_FEAT_DIM}")
 
     train_ds = PeelingTrajectoryDataset(str(train_path), max_samples=args.max_train_samples)
     val_ds = PeelingTrajectoryDataset(str(val_path))
     print(f"Loaded {len(train_ds):,} train states and {len(val_ds):,} val states")
 
+    pin_mem = device.type == "cuda"
     train_loader = DataLoader(
         train_ds,
         batch_size=args.batch_size,
         shuffle=True,
         collate_fn=collate_peeling_graphs,
         num_workers=args.num_workers,
+        pin_memory=pin_mem,
     )
     val_loader = DataLoader(
         val_ds,
@@ -1266,6 +1280,7 @@ def main():
         shuffle=False,
         collate_fn=collate_peeling_graphs,
         num_workers=args.num_workers,
+        pin_memory=pin_mem,
     )
 
     model = ReversePeelingGNN(

@@ -417,13 +417,17 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             phase=1,
             enzyme_family="Pericyclase",
             ec_class="EC 5.5.1.-",
-            source_db="MITE+Rhea (SpnF/LovB)",
-            # Conjugated diene + alkene -> cyclohexene bridge
+            source_db="MITE+Rhea+RetroMol (SpnF/LovB)",
+            # Conjugated diene + alkene -> cyclohexene bridge (includes rxn.yml reverse carbocyclization type 1 & 2)
             forward_smarts="([C:1]=[C:2]-[C:3]=[C:4].[C:5]=[C:6])>>[C:1]1-[C:2]=[C:3]-[C:4]-[C:6]-[C:5]-1",
-            reverse_smarts="[C:1]1-[C:2]=[C:3]-[C:4]-[C:6]-[C:5]-1>>([C:1]=[C:2]-[C:3]=[C:4].[C:5]=[C:6])",
+            reverse_smarts="[C;!$(C=*):1]1-[C:2]=[C:3]-[C;!$(C=*):4]-[C;!$(C=*):6]-[C;!$(C=*):5]-1>>([C:1]=[C:2]-[C:3]=[C:4].[C:5]=[C:6])",
             balanced_its_rsmi="[CH2:1]=[CH:2][CH:3]=[CH2:4].[CH2:5]=[CH2:6]>>[CH2:1]1[CH:2]=[CH:3][CH2:4][CH2:6][CH2:5]1",
             is_bridge_forming=True,
             caps_parent_oxygen=False,
+            extra_reverse_smarts=(
+                # RetroMol rxn.yml 'reverse carbocyclization (type 2)' (e.g., LovB/Pravastatin conjugated diene-decalin)
+                "[*:1][C:2]1[C:3]([*:4])[C:5]=[C:6][C:7](=[C;R:8][C;R:11])[C:9]([C;R:10])1>>([*:1][C:2]=1.[C:3]([*:4])=[C:5]-[C:6]=[C:7](-[C;R:8]=[C;R:11]).[C:9]([C;R:10])=1)",
+            ),
         ),
         EnzymaticTailoringRule(
             rule_id=1,
@@ -708,12 +712,16 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             phase=3,
             enzyme_family="Hydrolase",
             ec_class="EC 3.3.2.- / 5.5.1.-",
-            source_db="MITE+RetroMol (MonBI/MonBII/Lsd19)",
-            forward_smarts="[O;H1;D1:1]-[C:2]-[C:3]-[C:4]-[C;r3:5]1-[O;r3:6]-[C;r3:7]-1>>[O:1]1-[C:2]-[C:3]-[C:4]-[C:5]-1-[C:7]-[O;H1:6]",
-            reverse_smarts="[O;R:1]1-[C;R:2]-[C;R:3]-[C;R:4]-[C;R:5]-1-[C:7]-[O;H1;D1:6]>>[O;H1:1]-[C:2]-[C:3]-[C:4]-[C:5]1-[O:6]-[C:7]-1",
+            source_db="literature_RDChiral_Lsd19 + Ketcher_Lsd19_6endo (MonBI/MonBII/Lsd19)",
+            forward_smarts="([C:1]-[C;X4:2]1-[C;X4:3]-[O;D2;H0;+0:4]-1.[C;X4:5]-[OH;D1;+0:6])>>[C:5]-[O;H0;D2;+0:6]-[C;X4:2](-[C:3]-[OH;D1;+0:4])-[C:1]",
+            reverse_smarts="[C;R:5]-[O;R;H0;D2;+0:6]-[C;R;X4:2](-[C:3]-[OH;D1;+0:4])-[C;R:1]>>([C:1]-[C:2]1-[C:3]-[O:4]-1.[C:5]-[OH:6])",
             balanced_its_rsmi="[CH3:2][OH:1].[CH2:5]1[O:6][CH2:7]1>>[CH3:2][O:1][CH2:5][CH2:7][OH:6]",
             is_bridge_forming=True,
             caps_parent_oxygen=True,
+            extra_reverse_smarts=(
+                # literature_Ketcher_Lsd19_etherification_6endo (6-endo THP-3-ol -> 4,5-epoxypentan-1-ol)
+                "[C;!a;r6;!$(C-[O;!r6]):1]1[O;r6:2][C;!a;r6;!$(C-[O;!r6]):7][C;!a;r6:5]([OH;D1:6])[C;!a;r6:4][C;!a;r6:3]1>>[OH:2][C:1][C:3][C:4][C:5]1[O:6][C:7]1",
+            ),
         ),
         EnzymaticTailoringRule(
             rule_id=20,
@@ -885,13 +893,19 @@ def build_enzymatic_rule_bank() -> List[EnzymaticTailoringRule]:
             phase=1,
             enzyme_family="Pericyclase",
             ec_class="EC 5.5.1.- / 3.3.2.-",
-            source_db="RetroMol rxn.yml (MonBI / Lsd19 / SalBIII 5/6-ring polyether cyclase)",
-            # Intramolecular hydroxyl + alkene -> 5- or 6-membered THF/THP polyether ring
-            forward_smarts="[O;H1;D1:1]-[C:2]-[C:3]-[C:4]-[C:5]=[C:6]>>[O:1]1-[C:2]-[C:3]-[C:4]-[C:5]-1-[CH1:6]",
-            reverse_smarts="[O;r5,r6:1]1-[C;r5,r6:2]-[C;r5,r6:3]-[C;r5,r6:4]-[C;r5,r6:5]-1-[C;X4;H1,H2:6]>>[O;H1:1]-[C:2]-[C:3]-[C:4]-[C:5]=[C:6]",
-            balanced_its_rsmi="[CH3:2][OH:1].[CH2:5]=[CH2:6]>>[CH3:2][O:1][CH2:5][CH3:6]",
+            source_db="PKS_core execution_rules.py (POLYETHER_RING MonBI/Lsd19/SalBIII)",
+            # 5-membered THF or 6-membered THP cyclic ether unzipping (`Rule 19` + `Rule 4` composite)
+            forward_smarts="[O;H1;D1:1]-[C:2]-[C:3]-[C:4]-[C:5]=[C:6]>>[O:1]1-[C:2]-[C:3]-[C:4]-[C:5]-1-[CH1:6]-[O;H1]",
+            reverse_smarts="[O;r5:1]1-[C;r5;!$(C(O)O):2]-[C;r5:3]-[C;r5:4]-[C;r5;!$(C(O)O):5]-1-[C;X4:6]-[O;H1;D1:7]>>[O;H1:1]-[C:2]-[C:3]-[C:4]-[C:5]=[C:6]",
+            balanced_its_rsmi="[CH3:2][OH:1].[CH2:5]=[CH2:6].[OH2:7]>>[CH3:2][O:1][CH2:5][CH2:6][OH:7].[H][H]",
             is_bridge_forming=True,
             caps_parent_oxygen=True,
+            extra_reverse_smarts=(
+                # 6-membered THP ring adjacent to OH -> open-chain alcohol + alkene
+                "[O;r6:1]1-[C;r6;!$(C(O)O):2]-[C;r6:3]-[C;r6:4]-[C;r6:5]-[C;r6;!$(C(O)O):8]-1-[C;X4:6]-[O;H1;D1:7]>>[O;H1:1]-[C:2]-[C:3]-[C:4]-[C:5]-[C:8]=[C:6]",
+                # Dehydrative C1-adjacent THP ring opening (Nigericin/Salinomycin terminal THP -> 1,5-diol)
+                "[O;r6:1]1-[C;r6:2](-[C;X4:7]-[C;X3:8](=[O:9])O)-[C;r6:3]-[C;r6:4]-[C;r6:5]-[C;r6:6]-1>>[O;H1:1]-[C:6]-[C:5]-[C:4]-[C:3]-[C:2](-[O;H1])-[C:7]-[C:8](=[O:9])O",
+            ),
         ),
     ]
 

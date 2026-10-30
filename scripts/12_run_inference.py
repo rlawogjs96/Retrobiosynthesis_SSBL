@@ -40,7 +40,7 @@ def main() -> None:
     )
     parser.add_argument("--smiles", type=str, required=True, help="Input product SMILES to decompose")
     parser.add_argument("--checkpoint", type=str, default=DEFAULT_CHECKPOINT, help="Path to trained 3-head GNN checkpoint")
-    parser.add_argument("--max_depth", type=int, default=6, help="Maximum reverse-peeling steps")
+    parser.add_argument("--max_depth", type=int, default=12, help="Maximum reverse-peeling steps")
     parser.add_argument("--beam_width", type=int, default=8, help="Beam search width")
     parser.add_argument("--plot_out", type=str, default=None, help="Optional PNG path to save the visual pathway diagram")
     args = parser.parse_args()

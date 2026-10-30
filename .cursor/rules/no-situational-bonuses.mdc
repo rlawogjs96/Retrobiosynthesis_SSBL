@@ -1,0 +1,30 @@
+---
+description: Prohibit ad-hoc situational score bonuses, molecule-size cutoffs, and hardcoded rule-ID exceptions in retrobiosynthesis inference and search
+alwaysApply: true
+---
+
+# Zero Situational Bonuses & Publication-Grade Generalizability
+
+To maintain scientific rigor and reproducibility for publication (e.g., *Nature Communications*), all retrobiosynthetic search, candidate ranking, and site-scoring logic must rely strictly on learned neural outputs (`ReversePeelingGNN` Heads 1–3, `SynCat` cross-attention, `PATRO` pathway LSTM) and principled biochemical grammar rules defined in the rule bank.
+
+## Prohibited Patterns
+
+- **No Situational Score Bonuses**: Do not add flat or conditional score bonuses (`+0.06`, `+0.10`, etc.) to `site_score` or `step_transition_score` for specific depths, molecule sizes, or rule categories.
+- **No Rule-Specific Base Score Floors**: Every enzymatic rule (including hybrid PKS-NRPS rules matched against `data/mxn.yml`) must be evaluated with the exact same `site_score` and `step_transition_score` equations.
+- **No Hardcoded Rule-ID Bypass Lists in Search**: Never hardcode `if rule.rule_id not in (...)` inside inference or search loops. Any chemical property of a reaction (such as `is_bridge_forming`, `caps_parent_oxygen`, `can_collide_with_inline_pks`, or tautomer SMARTS) must be declared as a first-class attribute of `EnzymaticTailoringRule` in the rule bank (`scripts/02_generate_PKS_augmentations.py`).
+- **No Hidden Inference-Only SMARTS Patches**: Reaction templates must live in the shared rule bank, never patched inline for specific `rule_id`s during inference.
+
+## Example
+
+```python
+# ❌ BAD: Hardcoded rule-ID exemptions and ad-hoc score bonuses in inference
+if rule.rule_id not in (13, 11, 15, 26, 30, 31, 8, 23) and mean_core > 0.88:
+    continue
+bonus = 0.10 if n_carbons <= 32 and in_dpo else 0.0
+site_score = 0.78 + 0.22 * site_exp if rule_id in (20, 24) else 0.45 * site_exp + 0.35 * site_decor + bonus
+
+# ✅ GOOD: Uniform neural scoring across all rules and first-class rule bank attributes
+if rule.can_collide_with_inline_pks and mean_removed_core_prob > core_protection_threshold:
+    continue
+site_score = min(1.0, 0.50 * site_exposed_score + 0.30 * site_decor_score + syncat_boost)
+```
